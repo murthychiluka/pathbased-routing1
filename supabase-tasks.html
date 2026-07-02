@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tasks App - Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 4px; }
+        button.add-btn { padding: 10px 20px; background: #3ecf8e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .task-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #ddd; margin-bottom: 8px; border-radius: 4px; background: white; }
+        .task-item.done { background: #f0fff0; }
+        .task-title { cursor: pointer; flex: 1; font-size: 15px; }
+        .task-title.done { text-decoration: line-through; color: #999; }
+        button.delete-btn { background: red; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .back-btn { display: inline-block; margin-bottom: 20px; color: #3ecf8e; text-decoration: none; }
+        .empty { color: #999; }
+        .status { padding: 8px; border-radius: 4px; margin-bottom: 10px; display: none; }
+        .status.error { background: #ffe0e0; color: red; display: block; }
+        .status.success { background: #e0ffe0; color: green; display: block; }
+        .badge { background: #3ecf8e; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <a class="back-btn" href="index.html">← Back to Home</a>
+    <h1>📝 Tasks App <span class="badge">Supabase</span></h1>
+    <p class="subtitle">Frontend: Vercel | Backend + DB: Supabase PostgreSQL</p>
+
+    <div id="status" class="status"></div>
+
+    <div class="input-row">
+        <input type="text" id="taskInput" placeholder="Enter task title..."
+            onkeypress="if(event.key==='Enter') addTask()" />
+        <button class="add-btn" onclick="addTask()">Add</button>
+    </div>
+
+    <div id="taskList"><p class="empty">Loading tasks...</p></div>
+
+<script>
+    const SUPABASE_URL = "https://secjypqghoqysztyewot.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlY2p5cHFnaG9xeXN6dHlld290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDkxNjIsImV4cCI6MjA5ODU4NTE2Mn0.1fOq2fZ-43cnr3cGAxK2Rjt_GrlCexIK4F-wdY0xT3Q";
+
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    function showStatus(msg, type) {
+        const el = document.getElementById("status");
+        el.textContent = msg;
+        el.className = "status " + type;
+        setTimeout(() => el.className = "status", 3000);
+    }
+
+    async function fetchTasks() {
+        const { data, error } = await db
+            .from("tasks")
+            .select("*")
+            .order("id", { ascending: true });
+        if (error) {
+            showStatus("Failed to load: " + error.message, "error");
+            return;
+        }
+        renderTasks(data);
+    }
+
+    function renderTasks(tasks) {
+        const list = document.getElementById("taskList");
+        if (tasks.length === 0) {
+            list.innerHTML = "<p class='empty'>No tasks yet. Add one above!</p>";
+            return;
+        }
+        list.innerHTML = tasks.map(task => `
+            <div class="task-item ${task.done ? 'done' : ''}">
+                <span class="task-title ${task.done ? 'done' : ''}"
+                    onclick="toggleTask(${task.id}, ${task.done})">
+                    ${task.done ? '✅' : '⬜'} ${task.title}
+                </span>
+                <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
+            </div>
+        `).join("");
+    }
+
+    async function addTask() {
+        const input = document.getElementById("taskInput");
+        const title = input.value.trim();
+        if (!title) return;
+        const { error } = await db
+            .from("tasks")
+            .insert([{ title, done: false }]);
+        if (error) { showStatus("Failed: " + error.message, "error"); return; }
+        showStatus("✅ Task added!", "success");
+        input.value = "";
+        fetchTasks();
+    }
+
+    async function toggleTask(id, currentDone) {
+        const { error } = await db
+            .from("tasks")
+            .update({ done: !currentDone })
+            .eq("id", id);
+        if (error) { showStatus("Failed: " + error.message, "error"); return; }
+        fetchTasks();
+    }
+
+    async function deleteTask(id) {
+        const { error } = await db
+            .from("tasks")
+            .delete()
+            .eq("id", id);
+        if (error) { showStatus("Failed: " + error.message, "error"); return; }
+        showStatus("🗑️ Task deleted!", "success");
+        fetchTasks();
+    }
+
+    fetchTasks();
+</script>
+</body>
+</html>
